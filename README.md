@@ -1,5 +1,14 @@
 # Bairro Certo
 
+Nulti-criteria place finder: describe your ideal place in one messy sentence — stacking as many
+spatial constraints as you want, positive ("within 400 m of a metro") and negative
+("no major avenue within 200 m") — and the map shows where everything holds at once.
+
+Claude Haiku (via the Claude Code CLI in headless mode) writes a GeoSPARQL query;
+QLever runs it against the full OSM planet (automatic fallback to the Wikidata Query
+Service when QLever is unreachable); the page shows the SPARQL, a results table, and
+Leaflet geometries color-coded per column.
+
 ## Stack
 
 - Python 3.11+, FastAPI, httpx (async).
