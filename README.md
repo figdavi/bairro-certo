@@ -44,7 +44,7 @@ uvicorn app:app --reload
 
 ```
 app.py                            # FastAPI server + claude CLI call + dual SPARQL engines
-app2.py                           # "Achei!" guided finder backend (imports app.py; deterministic SPARQL + optional Haiku)
+app2.py                           # guided finder backend (imports app.py; deterministic SPARQL + optional Haiku)
 templates/index.html              # Free-text UI: form, constraint builder, SPARQL pre, table, map
 templates/finder.html             # Guided finder UI: Transit-style wizard + live map (served by app2.py)
 start.sh                          # one-shot startup: OAuth token → .env → uvicorn (--app app2 for the finder)
@@ -52,14 +52,3 @@ scripts/verify_qlever_patterns.sh # curl-verifies constraint-stack patterns agai
 requirements.txt
 README.md
 ```
-
-## The two frontends
-
-- **`app.py` (port 8000)** — the original talk demo: one messy sentence → Haiku → GeoSPARQL.
-- **`app2.py` — "Achei!"** (`./start.sh --app app2`) — a consumer-style guided finder:
-  wizard (morar / abrir → cidade) → live map with colored criteria pills, sliders and
-  ranked result cards. Structured criteria compile to SPARQL **deterministically**
-  (no LLM latency, no generation errors); an optional free-text criterion routes the
-  whole question through Haiku instead. On the Wikidata backup engine it runs small
-  parallel queries (candidates + one per category, cached 10 min) and crosses
-  distances in Python — slider tweaks re-rank in ~20 ms without touching the network.
