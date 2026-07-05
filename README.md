@@ -1,6 +1,6 @@
 # Bairro Certo
 
-Nulti-criteria place finder: describe your ideal place in one messy sentence — stacking as many
+Multi-criteria place finder: describe your ideal place in one messy sentence — stacking as many
 spatial constraints as you want, positive ("within 400 m of a metro") and negative
 ("no major avenue within 200 m") — and the map shows where everything holds at once.
 
