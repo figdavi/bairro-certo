@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bairro Certo</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --green: #30b566;
+    --green-deep: #0e7a43;
+    --ink: #10241a;
+    --paper: #ffffff;
+    --radius: 22px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Nunito", -apple-system, system-ui, sans-serif;
+    background: linear-gradient(160deg, #2fbd6b 0%, #17a05a 55%, #0e7a43 100%);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  /* ---------- wizard screens ---------- */
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 1.5rem; gap: 1.2rem;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s;
+    transform: translateX(100%); opacity: 0; pointer-events: none;
+  }
+  .screen.active { transform: translateX(0); opacity: 1; pointer-events: auto; }
+  .kicker { color: #d8ffe8; font-weight: 800; letter-spacing: 0.18em; font-size: 0.75rem; text-transform: uppercase; margin: 0; }
+  .screen h1 { color: #fff; font-weight: 900; font-size: clamp(1.6rem, 4.5vw, 2.6rem); margin: 0; text-align: center; text-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+  .cards { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; max-width: 720px; }
+  .bigcard {
+    background: var(--paper); border: none; border-radius: var(--radius);
+    padding: 1.4rem 1.6rem; min-width: 220px; cursor: pointer;
+    font-family: inherit; font-weight: 800; font-size: 1.15rem; color: var(--ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .bigcard:hover { transform: translateY(-4px) scale(1.03); box-shadow: 0 14px 30px rgba(0,0,0,0.25); }
+  .bigcard .em { font-size: 2.6rem; }
+  .bigcard small { font-weight: 700; color: #6b8577; font-size: 0.8rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; width: min(680px, 92vw); }
+  .gridbtn {
+    background: var(--paper); border: none; border-radius: 18px; padding: 0.9rem 0.6rem;
+    font-family: inherit; font-weight: 800; font-size: 0.95rem; color: var(--ink); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.15); transition: transform 0.12s;
+  }
+  .gridbtn:hover { transform: translateY(-3px) scale(1.04); }
+  .gridbtn .em { font-size: 1.7rem; }
+  .backlink { background: none; border: none; color: #d8ffe8; font-family: inherit; font-weight: 800; font-size: 0.9rem; cursor: pointer; }
+
+  /* ---------- dream (language-first) screen ---------- */
+  .dreambox { width: min(640px, 92vw); display: flex; flex-direction: column; gap: 0.8rem; }
+  .dreambox textarea {
+    width: 100%; min-height: 110px; resize: vertical;
+    border: none; border-radius: 18px; padding: 1rem 1.1rem;
+    font-family: inherit; font-weight: 700; font-size: 1.05rem; color: var(--ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .dreambox textarea:focus { outline: 3px solid #ffd66b; }
+  .dreamrow { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .dreamrow select {
+    border: none; border-radius: 14px; padding: 0.7rem 0.9rem;
+    font-family: inherit; font-weight: 800; font-size: 0.95rem; color: var(--ink);
+    box-shadow: 0 5px 16px rgba(0,0,0,0.15);
+  }
+  .dreamrow .go {
+    flex: 1; border: none; border-radius: 14px; padding: 0.8rem 1.2rem; cursor: pointer;
+    background: #10241a; color: #ffd66b; font-family: inherit; font-weight: 900; font-size: 1rem;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3); transition: transform 0.12s;
+  }
+  .dreamrow .go:hover { transform: scale(1.02); }
+  .examples { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+  .examples button {
+    border: none; border-radius: 999px; padding: 0.35rem 0.75rem; cursor: pointer;
+    background: rgba(255,255,255,0.22); color: #fff; font-family: inherit; font-weight: 700; font-size: 0.78rem;
+  }
+  .examples button:hover { background: rgba(255,255,255,0.35); }
+
+  /* ---------- map screen ---------- */
+  #s-map { padding: 0; justify-content: flex-start; }
+  .topbar {
+    width: 100%; background: var(--paper); z-index: 900;
+    padding: 0.55rem 0.8rem; display: flex; align-items: center; gap: 0.6rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  }
+  .topbar .back { border: none; background: #eef7f1; border-radius: 999px; width: 38px; height: 38px; font-size: 1.1rem; cursor: pointer; flex: none; }
+  .topbar .title { font-weight: 900; font-size: 1.05rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .sparqlbtn { border: none; background: #eef7f1; border-radius: 999px; padding: 0.45rem 0.7rem; font-family: monospace; font-weight: 700; cursor: pointer; flex: none; }
+  .engine-badge { font-size: 0.68rem; font-weight: 800; padding: 0.2rem 0.55rem; border-radius: 999px; flex: none; }
+  .engine-badge.osm { background: #dcfce7; color: #166534; }
+  .engine-badge.backup { background: #fef9c3; color: #854d0e; }
+
+  .pillbar {
+    width: 100%; background: var(--paper); z-index: 900;
+    display: flex; gap: 0.45rem; padding: 0.45rem 0.8rem 0.65rem; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .pillbar::-webkit-scrollbar { display: none; }
+  .pill {
+    flex: none; border: none; border-radius: 999px; padding: 0.45rem 0.85rem;
+    font-family: inherit; font-weight: 800; font-size: 0.85rem; color: #fff; cursor: pointer;
+    display: flex; align-items: center; gap: 0.35rem; box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+    transition: transform 0.12s;
+  }
+  .pill:hover { transform: scale(1.05); }
+  .pill .w { font-size: 0.62rem; letter-spacing: 0.08em; opacity: 0.9; }
+  .pill.avoid { background: #fff !important; box-shadow: inset 0 0 0 2.5px currentColor, 0 3px 8px rgba(0,0,0,0.12); }
+  .pill.addpill { background: #eef7f1; color: var(--green-deep); box-shadow: inset 0 0 0 2px #bfe8d0; }
+  .pill.custompill { background: #10241a; color: #ffd66b; }
+
+  #map { flex: 1; width: 100%; z-index: 1; }
+
+  .resultsbar {
+    width: 100%; background: var(--paper); z-index: 900;
+    border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(0,0,0,0.18);
+    max-height: 38vh; display: flex; flex-direction: column;
+  }
+  .resultsbar header { padding: 0.6rem 1rem 0.3rem; font-weight: 900; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
+  .rescards { display: flex; gap: 0.6rem; overflow-x: auto; padding: 0.3rem 1rem 0.9rem; }
+  .rescard {
+    flex: none; width: 230px; background: #f4faf6; border: none; border-radius: 16px;
+    padding: 0.6rem 0.75rem; text-align: left; cursor: pointer; font-family: inherit;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08); transition: transform 0.12s;
+  }
+  .rescard:hover { transform: translateY(-3px); }
+  .rescard .toprow { display: flex; justify-content: space-between; align-items: baseline; }
+  .rescard .rank { font-size: 0.7rem; font-weight: 900; color: var(--green-deep); }
+  .rescard .pct { font-size: 1.15rem; font-weight: 900; }
+  .rescard .nm { font-weight: 800; font-size: 0.95rem; margin: 0.1rem 0 0.35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rescard .bar { height: 6px; border-radius: 999px; background: #e3efe7; margin-bottom: 0.4rem; overflow: hidden; }
+  .rescard .bar i { display: block; height: 100%; border-radius: 999px; }
+  .rescard .chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .rescard .chip { font-size: 0.68rem; font-weight: 800; padding: 0.12rem 0.45rem; border-radius: 999px; color: #fff; }
+
+  /* ---------- sheets & overlays ---------- */
+  .sheetwrap { position: absolute; inset: 0; z-index: 1500; background: rgba(6,30,17,0.45); display: none; align-items: flex-end; justify-content: center; }
+  .sheetwrap.open { display: flex; }
+  .sheet {
+    background: var(--paper); border-radius: 24px 24px 0 0; width: min(560px, 100%);
+    padding: 1.1rem 1.2rem 1.5rem; animation: up 0.25s cubic-bezier(0.3, 1.2, 0.4, 1);
+    max-height: 78vh; overflow-y: auto;
+  }
+  @keyframes up { from { transform: translateY(60%); } to { transform: translateY(0); } }
+  .sheet h3 { margin: 0.2rem 0 0.8rem; font-weight: 900; }
+  .catgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 0.55rem; }
+  .catbtn { border: none; border-radius: 14px; padding: 0.6rem 0.3rem; font-family: inherit; font-weight: 800; font-size: 0.78rem; cursor: pointer; color: #fff; display: flex; flex-direction: column; gap: 0.15rem; align-items: center; }
+  .catbtn .em { font-size: 1.4rem; }
+  .customrow { margin-top: 1rem; display: flex; gap: 0.5rem; }
+  .customrow input { flex: 1; border: 2px solid #d7eade; border-radius: 12px; padding: 0.6rem 0.7rem; font-family: inherit; font-size: 0.9rem; }
+  .customrow button { border: none; border-radius: 12px; background: #10241a; color: #ffd66b; font-family: inherit; font-weight: 800; padding: 0 1rem; cursor: pointer; }
+  .hint { font-size: 0.75rem; color: #6b8577; margin-top: 0.35rem; }
+
+  .editor .kindrow, .editor .weightrow { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .editor .kindrow button, .editor .weightrow button {
+    flex: 1; border: 2.5px solid #d7eade; background: #fff; border-radius: 14px; padding: 0.6rem 0.3rem;
+    font-family: inherit; font-weight: 800; font-size: 0.85rem; cursor: pointer;
+  }
+  .editor .kindrow button.sel, .editor .weightrow button.sel { border-color: var(--green); background: #e8f8ee; }
+  .editor .seclabel { font-size: 0.75rem; font-weight: 900; color: #6b8577; text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 0.35rem; }
+  .editor input[type="range"] { width: 100%; accent-color: var(--green); }
+  .editor .distlabel { text-align: center; font-weight: 900; font-size: 1.5rem; margin: 0.3rem 0 0.6rem; }
+  .editor .distlabel small { font-size: 0.75rem; color: #6b8577; display: block; font-weight: 700; }
+  .editor .actions { display: flex; gap: 0.6rem; margin-top: 1rem; }
+  .editor .actions .rm { background: #fee2e2; color: #991b1b; }
+  .editor .actions button { flex: 1; border: none; border-radius: 14px; padding: 0.75rem; font-family: inherit; font-weight: 900; font-size: 1rem; cursor: pointer; background: var(--green); color: #fff; }
+
+  .fab {
+    position: absolute; bottom: calc(38vh + 14px); left: 50%; transform: translateX(-50%);
+    z-index: 950; border: none; border-radius: 999px; padding: 0.8rem 1.6rem;
+    background: #10241a; color: #fff; font-family: inherit; font-weight: 900; font-size: 1rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); cursor: pointer; display: none;
+  }
+  .fab.show { display: block; animation: up 0.25s; }
+
+  #loading {
+    position: absolute; inset: 0; z-index: 2000; display: none;
+    background: rgba(14,90,50,0.92); color: #fff;
+    flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+  }
+  #loading.open { display: flex; }
+  #loading .pin { font-size: 4rem; animation: bounce 1s infinite; }
+  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-18px); } }
+  #loading .msg { font-weight: 800; font-size: 1.1rem; }
+
+  #sparqlview { align-items: center; }
+  #sparqlview .sheet { border-radius: 24px; max-height: 82vh; }
+  #sparqlview pre { background: #10241a; color: #b6f3cf; padding: 0.8rem; border-radius: 12px; font-size: 0.72rem; overflow: auto; white-space: pre-wrap; }
+
+  .toast {
+    position: absolute; top: 110px; left: 50%; transform: translateX(-50%);
+    z-index: 1800; background: #fef9c3; color: #854d0e; border: 2px solid #fde047;
+    padding: 0.6rem 1rem; border-radius: 14px; font-weight: 800; font-size: 0.85rem;
+    max-width: 90vw; display: none;
+  }
+  .toast.err { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .toast.show { display: block; }
+
+  .rankicon {
+    color: #fff; border-radius: 50%; width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-family: "Nunito", sans-serif; font-size: 0.78rem;
+    border: 2.5px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+  }
+</style>
+</head>
+<body>
+
+<!-- STEP 1: mode -->
+<section class="screen active" id="s-mode">
+  <p class="kicker">Bairro Certo</p>
+  <h1>O que você está procurando?</h1>
+  <div class="cards">
+    <button class="bigcard" data-mode="morar"><span class="em">🏠</span>Um lugar para morar<small>bairros que combinam com sua vida</small></button>
+    <button class="bigcard" data-mode="abrir"><span class="em">🏪</span>Onde abrir meu negócio<small>perto dos clientes, longe da concorrência</small></button>
+  </div>
+</section>
+
+<!-- STEP 2: describe it (language-first) -->
+<section class="screen" id="s-dream">
+  <p class="kicker">Conte pra gente</p>
+  <h1 id="dreamTitle">Descreva o lugar dos seus sonhos</h1>
+  <div class="dreambox">
+    <textarea id="dreamText" placeholder="ex.: quero muito ficar perto do metrô e de um parque, mercado por perto seria bom, mas longe de avenida movimentada…"></textarea>
+    <div class="dreamrow">
+      <select id="dreamCity"></select>
+      <button class="go" id="dreamGo">Entendi, me mostra ✨</button>
+    </div>
+    <div class="examples" id="dreamExamples"></div>
+  </div>
+  <button class="backlink" id="manualLink">prefiro montar critério por critério →</button>
+  <button class="backlink" data-back="s-mode">← voltar</button>
+</section>
+
+<!-- STEP 2b (manual path): business type -->
+<section class="screen" id="s-biz">
+  <p class="kicker">Modo manual</p>
+  <h1>Qual é o seu negócio?</h1>
+  <div class="grid" id="bizgrid"></div>
+  <button class="backlink" data-back="s-dream">← voltar</button>
+</section>
+
+<!-- STEP 3 (manual path): city -->
+<section class="screen" id="s-city">
+  <p class="kicker">Quase lá</p>
+  <h1>Em qual cidade?</h1>
+  <div class="grid" id="citygrid"></div>
+  <button class="backlink" data-back="s-dream">← voltar</button>
+</section>
+
+<!-- MAP SCREEN -->
+<section class="screen" id="s-map">
+  <div class="topbar">
+    <button class="back" id="btnRestart" title="recomeçar">←</button>
+    <div class="title" id="mapTitle"></div>
+    <span class="engine-badge" id="engineBadge" style="display: none"></span>
+    <button class="sparqlbtn" id="btnSparql" title="ver SPARQL">&lt;/&gt;</button>
+  </div>
+  <div class="pillbar" id="pillbar"></div>
+  <div id="map"></div>
+  <button class="fab" id="btnSearch">Buscar de novo ✨</button>
+  <div class="resultsbar">
+    <header><span id="resCount">Ajuste os critérios acima</span></header>
+    <div class="rescards" id="rescards"></div>
+  </div>
+</section>
+
+<!-- sheets -->
+<div class="sheetwrap" id="catSheet">
+  <div class="sheet">
+    <h3>Adicionar critério</h3>
+    <div class="catgrid" id="catgrid"></div>
+    <div class="customrow">
+      <input type="text" id="customInput" placeholder="✨ critério livre - ex.: perto do rio" />
+      <button id="customAdd">IA</button>
+    </div>
+    <p class="hint">O critério livre usa a IA para traduzir o conceito em tags OSM - depois entra no ranking como qualquer outro critério, com % de match.</p>
+  </div>
+</div>
+
+<div class="sheetwrap" id="editSheet">
+  <div class="sheet editor">
+    <h3 id="editTitle"></h3>
+    <p class="seclabel">tipo</p>
+    <div class="kindrow">
+      <button id="kindNear">✅ perto</button>
+      <button id="kindAvoid">🚫 longe</button>
+    </div>
+    <p class="seclabel">quão importante?</p>
+    <div class="weightrow">
+      <button data-w="1">🙂 desejável</button>
+      <button data-w="2">👍 importante</button>
+      <button data-w="3">⭐ essencial</button>
+    </div>
+    <p class="seclabel">distância ideal</p>
+    <div class="distlabel"><span id="distVal">400</span> m
+      <small id="distHint">lugares além disso perdem pontos, mas não somem</small>
+    </div>
+    <input type="range" id="distRange" min="100" max="2000" step="50" value="400" />
+    <div class="actions">
+      <button class="rm" id="editRemove">remover</button>
+      <button id="editDone">pronto</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheetwrap" id="sparqlview">
+  <div class="sheet">
+    <h3>SPARQL executado <span id="sparqlEngine" style="font-size: 0.75rem; color: #6b8577"></span></h3>
+    <p class="hint" id="sparqlQuestion" style="display: none"></p>
+    <pre id="sparqlPre">(nenhuma busca ainda)</pre>
+  </div>
+</div>
+
+<div id="loading"><div class="pin">📍</div><div class="msg" id="loadMsg">Procurando…</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---------------------------------------------------------------- registry
+const CATS = {
+  metro: { em: "🚇", label: "metrô", color: "#0a84ff" },
+  onibus: { em: "🚌", label: "ônibus", color: "#5ac8fa" },
+  parque: { em: "🌳", label: "parque", color: "#2f9e55" },
+  supermercado: { em: "🛒", label: "supermercado", color: "#ff9500" },
+  padaria: { em: "🥖", label: "padaria", color: "#d9a400" },
+  farmacia: { em: "💊", label: "farmácia", color: "#ff3b30" },
+  escola: { em: "🏫", label: "escola", color: "#af52de" },
+  hospital: { em: "🏥", label: "hospital", color: "#ff2d55" },
+  universidade: { em: "🎓", label: "universidade", color: "#5856d6" },
+  restaurante: { em: "🍽️", label: "restaurante", color: "#ff6b22" },
+  cafe: { em: "☕", label: "café", color: "#a2845e" },
+  academia: { em: "💪", label: "academia", color: "#6c47ff" },
+  avenida: { em: "🛣️", label: "avenida", color: "#8e8e93" },
+  praia: { em: "🏖️", label: "praia", color: "#00a3bf" },
+};
+const CITIES = {
+  lisboa: "Lisboa", porto: "Porto", berlim: "Berlim", paris: "Paris",
+  madri: "Madri", roma: "Roma", londres: "Londres", "nova-york": "Nova York",
+  rio: "Rio de Janeiro", "sao-paulo": "São Paulo", brasilia: "Brasília",
+};
+const CITY_EMOJI = { lisboa: "🇵🇹", porto: "🇵🇹", berlim: "🇩🇪", paris: "🇫🇷", madri: "🇪🇸", roma: "🇮🇹", londres: "🇬🇧", "nova-york": "🇺🇸", rio: "🇧🇷", "sao-paulo": "🇧🇷", brasilia: "🇧🇷" };
+const BIZ = ["cafe", "restaurante", "padaria", "farmacia", "academia"];
+const WEIGHT_LABEL = { 1: "desejável", 2: "importante", 3: "essencial" };
+const WEIGHT_DOTS = { 1: "●", 2: "●●", 3: "●●●" };
+const LOAD_MSGS = ["Traduzindo seus critérios…", "Consultando o planeta OSM…", "Cruzando as distâncias…", "Calculando o match de cada lugar…"];
+const DREAM_EXAMPLES = {
+  morar: [
+    "perto de metrô e de um parque, longe de avenida movimentada",
+    "essencial ter escola e farmácia perto; padaria seria um bônus",
+    "quero academia e supermercado a uns 300 m, em Lisboa",
+  ],
+  abrir: [
+    "café perto de universidade, sem outro café num raio de 1 km",
+    "restaurante perto de metrô e de escritórios, longe da concorrência",
+  ],
+};
+
+// ---------------------------------------------------------------- state
+const state = {
+  mode: null, biz: null, city: null,
+  criteria: [],          // {kind, category, distance (ideal), weight}
+  custom: null,
+  dirty: false,
+  editing: null,
+  lastPayload: null,
+};
+
+// ---------------------------------------------------------------- wizard nav
+function show(id) {
+  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+document.querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => show(b.dataset.back)));
+
+document.querySelectorAll("#s-mode .bigcard").forEach((b) => (b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.getElementById("dreamTitle").textContent =
+    state.mode === "morar" ? "Descreva o lugar dos seus sonhos" : "Descreva o ponto perfeito pro seu negócio";
+  renderDreamExamples();
+  show("s-dream");
+  setTimeout(() => document.getElementById("dreamText").focus(), 380);
+}));
+
+// city select on the dream screen ("deixa a IA descobrir" = empty)
+const dreamCity = document.getElementById("dreamCity");
+{
+  const opt = document.createElement("option");
+  opt.value = ""; opt.textContent = "🌍 cidade? (a IA tenta descobrir)";
+  dreamCity.appendChild(opt);
+  for (const [k, label] of Object.entries(CITIES)) {
+    const o = document.createElement("option");
+    o.value = k; o.textContent = `${CITY_EMOJI[k]} ${label}`;
+    dreamCity.appendChild(o);
+  }
+}
+
+function renderDreamExamples() {
+  const div = document.getElementById("dreamExamples");
+  div.innerHTML = "";
+  for (const ex of DREAM_EXAMPLES[state.mode] || []) {
+    const b = document.createElement("button");
+    b.textContent = "💡 " + (ex.length > 55 ? ex.slice(0, 52) + "…" : ex);
+    b.title = ex;
+    b.onclick = () => { document.getElementById("dreamText").value = ex; };
+    div.appendChild(b);
+  }
+}
+
+document.getElementById("manualLink").onclick = () => {
+  // manual path keeps the old wizard: defaults per mode, then biz/city grids
+  if (state.mode === "abrir") { show("s-biz"); return; }
+  state.biz = null;
+  state.criteria = [
+    { kind: "near", category: "metro", distance: 500, weight: 2 },
+    { kind: "near", category: "parque", distance: 800, weight: 1 },
+  ];
+  show("s-city");
+};
+
+const bizgrid = document.getElementById("bizgrid");
+for (const k of BIZ) {
+  const b = document.createElement("button");
+  b.className = "gridbtn";
+  b.innerHTML = `<span class="em">${CATS[k].em}</span>${CATS[k].label}`;
+  b.onclick = () => {
+    state.biz = k;
+    state.criteria = [
+      { kind: "near", category: "metro", distance: 500, weight: 2 },
+      { kind: "avoid", category: k, distance: 800, weight: 3 },  // longe da concorrência
+    ];
+    show("s-city");
+  };
+  bizgrid.appendChild(b);
+}
+
+const citygrid = document.getElementById("citygrid");
+for (const [k, label] of Object.entries(CITIES)) {
+  const b = document.createElement("button");
+  b.className = "gridbtn";
+  b.innerHTML = `<span class="em">${CITY_EMOJI[k]}</span>${label}`;
+  b.onclick = () => { state.city = k; enterMap(); };
+  citygrid.appendChild(b);
+}
+
+document.getElementById("btnRestart").onclick = () => {
+  state.criteria = []; state.custom = null; state.lastPayload = null;
+  markersLayer.clearLayers();
+  document.getElementById("rescards").innerHTML = "";
+  document.getElementById("resCount").textContent = "Ajuste os critérios acima";
+  document.getElementById("dreamText").value = "";
+  show("s-mode");
+};
+
+// ---------------------------------------------------------------- NL parse (language-first)
+document.getElementById("dreamGo").onclick = async () => {
+  const text = document.getElementById("dreamText").value.trim();
+  if (!text) { show("s-city"); return; }  // nothing written → manual city pick with no criteria yet
+  setLoading(true, "Interpretando o que você quer…");
+  try {
+    const res = await fetch("/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const p = await res.json();
+    if (p.error) { toast(p.error, true); return; }
+    if (p.mode && !state.mode) state.mode = p.mode;
+    state.criteria = (p.criteria || []).map((c) => ({ ...c }));
+    if (!state.criteria.length && !(p.unmapped || []).length) {
+      toast("Não consegui extrair nenhum critério - tente descrever com lugares (metrô, parque, escola…)", true);
+      return;
+    }
+    if ((p.unmapped || []).length) {
+      // what the AI couldn't map becomes a free-text criterion suggestion
+      state.custom = p.unmapped.join("; ");
+      toast(`Sem categoria exata para: ${p.unmapped.join(", ")} - mantive como critério livre ✨ (toque no chip para remover)`);
+    } else {
+      state.custom = null;
+    }
+    const chosen = dreamCity.value || p.city;
+    if (chosen) { state.city = chosen; enterMap(); }
+    else show("s-city");
+  } catch (e) {
+    toast("Falha ao interpretar: " + e, true);
+  } finally {
+    setLoading(false);
+  }
+};
+
+// ---------------------------------------------------------------- map
+const map = L.map("map", { zoomControl: false });
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  attribution: "© OpenStreetMap contributors © CARTO", maxZoom: 19,
+}).addTo(map);
+const markersLayer = L.layerGroup().addTo(map);
+
+const CITY_VIEW = {
+  lisboa: [38.72, -9.14], porto: [41.15, -8.62], berlim: [52.52, 13.4], paris: [48.86, 2.35],
+  madri: [40.42, -3.7], roma: [41.9, 12.49], londres: [51.51, -0.12], "nova-york": [40.71, -74.0],
+  rio: [-22.91, -43.2], "sao-paulo": [-23.55, -46.63], brasilia: [-15.79, -47.88],
+};
+
+function enterMap() {
+  const what = state.mode === "abrir"
+    ? (state.biz ? `${CATS[state.biz].em} ${CATS[state.biz].label}` : "🏪 Abrir")
+    : "🏠 Morar";
+  document.getElementById("mapTitle").textContent = `${what} · ${CITIES[state.city]}`;
+  show("s-map");
+  map.invalidateSize();
+  map.setView(CITY_VIEW[state.city], 12);
+  renderPills();
+  runSearch();
+}
+
+// ---------------------------------------------------------------- pills
+function renderPills() {
+  const bar = document.getElementById("pillbar");
+  bar.innerHTML = "";
+  state.criteria.forEach((c, i) => {
+    const cat = CATS[c.category];
+    const p = document.createElement("button");
+    p.className = "pill" + (c.kind === "avoid" ? " avoid" : "");
+    p.style.background = cat.color;
+    if (c.kind === "avoid") p.style.color = cat.color;
+    const dtxt = c.distance >= 1000 ? (c.distance / 1000).toFixed(1).replace(".0", "") + "km" : c.distance + "m";
+    p.innerHTML = (c.kind === "near" ? `${cat.em} ${cat.label} · ~${dtxt}` : `🚫 ${cat.em} ${cat.label} · ${dtxt}`)
+      + `<span class="w">${WEIGHT_DOTS[c.weight] || "●●"}</span>`;
+    p.onclick = () => openEditor(i);
+    bar.appendChild(p);
+  });
+  if (state.custom) {
+    const p = document.createElement("button");
+    p.className = "pill custompill";
+    p.innerHTML = `✨ ${state.custom.length > 26 ? state.custom.slice(0, 24) + "…" : state.custom} ✕`;
+    p.title = state.custom;
+    p.onclick = () => { state.custom = null; setDirty(); renderPills(); };
+    bar.appendChild(p);
+  }
+  const add = document.createElement("button");
+  add.className = "pill addpill";
+  add.textContent = "+ critério";
+  add.onclick = () => document.getElementById("catSheet").classList.add("open");
+  bar.appendChild(add);
+}
+
+function setDirty() {
+  state.dirty = true;
+  document.getElementById("btnSearch").classList.add("show");
+}
+
+// category sheet
+const catgrid = document.getElementById("catgrid");
+for (const [k, cat] of Object.entries(CATS)) {
+  const b = document.createElement("button");
+  b.className = "catbtn";
+  b.style.background = cat.color;
+  b.innerHTML = `<span class="em">${cat.em}</span>${cat.label}`;
+  b.onclick = () => {
+    state.criteria.push({
+      kind: k === "avenida" ? "avoid" : "near",
+      category: k,
+      distance: k === "avenida" ? 200 : 500,
+      weight: 2,
+    });
+    closeSheets(); setDirty(); renderPills(); openEditor(state.criteria.length - 1);
+  };
+  catgrid.appendChild(b);
+}
+document.getElementById("customAdd").onclick = () => {
+  const v = document.getElementById("customInput").value.trim();
+  if (!v) return;
+  state.custom = v;
+  document.getElementById("customInput").value = "";
+  closeSheets(); setDirty(); renderPills();
+};
+
+// editor sheet
+function openEditor(i) {
+  state.editing = i;
+  const c = state.criteria[i];
+  const cat = CATS[c.category];
+  document.getElementById("editTitle").textContent = `${cat.em} ${cat.label}`;
+  document.getElementById("distRange").value = c.distance;
+  document.getElementById("distVal").textContent = c.distance;
+  syncKindButtons(c.kind);
+  syncWeightButtons(c.weight);
+  syncDistHint(c.kind);
+  document.getElementById("editSheet").classList.add("open");
+}
+function syncKindButtons(kind) {
+  document.getElementById("kindNear").classList.toggle("sel", kind === "near");
+  document.getElementById("kindAvoid").classList.toggle("sel", kind === "avoid");
+}
+function syncWeightButtons(w) {
+  document.querySelectorAll(".weightrow button").forEach((b) => b.classList.toggle("sel", +b.dataset.w === w));
+}
+function syncDistHint(kind) {
+  document.getElementById("distHint").textContent = kind === "near"
+    ? "lugares além disso perdem pontos, mas não somem"
+    : "quanto mais longe disso, melhor a nota";
+}
+document.getElementById("kindNear").onclick = () => { state.criteria[state.editing].kind = "near"; syncKindButtons("near"); syncDistHint("near"); setDirty(); };
+document.getElementById("kindAvoid").onclick = () => { state.criteria[state.editing].kind = "avoid"; syncKindButtons("avoid"); syncDistHint("avoid"); setDirty(); };
+document.querySelectorAll(".weightrow button").forEach((b) => (b.onclick = () => {
+  state.criteria[state.editing].weight = +b.dataset.w;
+  syncWeightButtons(+b.dataset.w);
+  setDirty();
+}));
+document.getElementById("distRange").oninput = (e) => {
+  document.getElementById("distVal").textContent = e.target.value;
+  state.criteria[state.editing].distance = +e.target.value;
+  setDirty();
+};
+document.getElementById("editRemove").onclick = () => {
+  state.criteria.splice(state.editing, 1);
+  closeSheets(); setDirty(); renderPills();
+};
+document.getElementById("editDone").onclick = () => { closeSheets(); renderPills(); };
+
+function closeSheets() {
+  document.querySelectorAll(".sheetwrap").forEach((s) => s.classList.remove("open"));
+}
+document.querySelectorAll(".sheetwrap").forEach((s) => s.addEventListener("click", (e) => { if (e.target === s) closeSheets(); }));
+
+// ---------------------------------------------------------------- search
+let loadTimer = null;
+function setLoading(on, firstMsg) {
+  const el = document.getElementById("loading");
+  el.classList.toggle("open", on);
+  clearInterval(loadTimer);
+  if (on) {
+    let i = 0;
+    document.getElementById("loadMsg").textContent = firstMsg || LOAD_MSGS[0];
+    loadTimer = setInterval(() => {
+      i = (i + 1) % LOAD_MSGS.length;
+      document.getElementById("loadMsg").textContent = LOAD_MSGS[i];
+    }, 3500);
+  }
+}
+
+function toast(msg, isErr) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isErr ? " err" : "");
+  setTimeout(() => t.classList.remove("show"), 7000);
+}
+
+document.getElementById("btnSearch").onclick = runSearch;
+
+async function runSearch() {
+  if (!state.city || (!state.criteria.length && !state.custom)) return;
+  setLoading(true);
+  state.dirty = false;
+  document.getElementById("btnSearch").classList.remove("show");
+  try {
+    const res = await fetch("/find", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: state.mode, city: state.city,
+        criteria: state.criteria, custom: state.custom,
+      }),
+    });
+    const payload = await res.json();
+    state.lastPayload = payload;
+    renderResult(payload);
+  } catch (e) {
+    toast("Falha na requisição: " + e, true);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ---------------------------------------------------------------- render
+function splitGroups(body) {
+  const groups = []; let depth = 0, start = -1;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "(") { if (depth === 0) start = i + 1; depth++; }
+    else if (ch === ")") { depth--; if (depth === 0) groups.push(body.slice(start, i)); }
+  }
+  return groups;
+}
+function coordList(s) { return s.split(",").map((p) => { const [lon, lat] = p.trim().split(/\s+/).map(Number); return [lat, lon]; }); }
+function parseWKT(wkt) {
+  const m = (wkt || "").match(/^\s*([A-Z]+)\s*\(([\s\S]*)\)\s*$/i);
+  if (!m) return null;
+  const type = m[1].toUpperCase(), body = m[2];
+  if (type === "POINT") { const [lon, lat] = body.trim().split(/\s+/).map(Number); return { type, latlng: [lat, lon] }; }
+  if (type === "POLYGON") { return { type, rings: splitGroups(body).map(coordList) }; }
+  if (type === "MULTIPOLYGON") { return { type, polys: splitGroups(body).map((p) => splitGroups(p).map(coordList)) }; }
+  if (type === "LINESTRING") { return { type, line: coordList(body) }; }
+  return null;
+}
+
+function scoreColor(s) {
+  if (s == null) return "#6b8577";
+  if (s >= 75) return "#17a05a";
+  if (s >= 45) return "#d9a400";
+  return "#e0523e";
+}
+
+function renderResult(payload) {
+  const badge = document.getElementById("engineBadge");
+  if (payload.engine) {
+    badge.style.display = "";
+    const backup = payload.engine !== "qlever-osm";
+    badge.className = "engine-badge " + (backup ? "backup" : "osm");
+    badge.textContent = backup ? "backup: Wikidata" : "OSM planet";
+  }
+  document.getElementById("sparqlPre").textContent = payload.sparql || "(sem SPARQL)";
+  document.getElementById("sparqlEngine").textContent = payload.engine_label ? "· " + payload.engine_label : "";
+  const q = document.getElementById("sparqlQuestion");
+  if (payload.question) { q.style.display = ""; q.textContent = "✨ " + payload.question; }
+  else q.style.display = "none";
+
+  if (payload.error) { toast(payload.error, true); return; }
+  if ((payload.skipped || []).length) {
+    const names = payload.skipped.map((k) => (CATS[k] ? CATS[k].label : k)).join(", ");
+    toast(`Sem "${names}" mapeado no OSM - critério ignorado no ranking`);
+  }
+
+  markersLayer.clearLayers();
+  const cards = document.getElementById("rescards");
+  cards.innerHTML = "";
+  const places = payload.places || [];
+  const scored = places.length && places[0].score != null;
+  const top = scored ? places[0].score : null;
+  document.getElementById("resCount").textContent = !places.length
+    ? "😕 nada encontrado por aqui - tente outra cidade ou outros critérios"
+    : scored
+      ? (top >= 45 ? `🏆 melhores lugares (top: ${top}% de match)` : `🤏 nada bateu muito bem - melhores aproximações (top: ${top}%)`)
+      : `🎉 ${places.length} lugar${places.length > 1 ? "es" : ""} encontrados`;
+
+  let allBounds = null;
+  const shapes = [];
+  places.forEach((p, i) => {
+    let latlng = null, bounds = null;
+    const g = p.wkt ? parseWKT(p.wkt) : null;
+    if (g) {
+      if (g.type === "POINT") { latlng = g.latlng; bounds = L.latLngBounds([latlng, latlng]); }
+      else {
+        let shape = null;
+        const style = { color: scoreColor(p.score ?? 80), weight: 2, fillOpacity: 0.18 };
+        if (g.type === "POLYGON") shape = L.polygon(g.rings.length === 1 ? g.rings[0] : g.rings, style);
+        if (g.type === "MULTIPOLYGON") shape = L.polygon(g.polys, style);
+        if (g.type === "LINESTRING") shape = L.polyline(g.line, { ...style, weight: 3 });
+        if (shape) { shape.addTo(markersLayer); bounds = shape.getBounds(); latlng = bounds.getCenter(); }
+      }
+    }
+    if (latlng) {
+      const label = p.score != null ? `${p.score}%` : `${i + 1}º`;
+      const icon = L.divIcon({
+        className: "",
+        html: `<div class="rankicon" style="background:${scoreColor(p.score ?? 80)}">${label}</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16],
+      });
+      const mk = L.marker(latlng, { icon }).addTo(markersLayer);
+      mk.bindPopup(`<b>${i + 1}º · ${p.name}</b>${p.score != null ? ` - ${p.score}% de match` : ""}<br>${critChips(p, true)}`);
+      shapes[i] = { mk, latlng };
+      if (bounds) allBounds = allBounds ? allBounds.extend(bounds) : L.latLngBounds(bounds.getSouthWest(), bounds.getNorthEast());
+    }
+
+    const card = document.createElement("button");
+    card.className = "rescard";
+    const pct = p.score != null ? `<span class="pct" style="color:${scoreColor(p.score)}">${p.score}%</span>` : "";
+    const bar = p.score != null ? `<div class="bar"><i style="width:${p.score}%;background:${scoreColor(p.score)}"></i></div>` : "";
+    card.innerHTML = `<div class="toprow"><span class="rank">${i + 1}º lugar</span>${pct}</div>
+      <div class="nm">${p.name}</div>${bar}
+      <div class="chips">${critChips(p, false)}</div>`;
+    card.onclick = () => { if (shapes[i]) { map.setView(shapes[i].latlng, 15); shapes[i].mk.openPopup(); } };
+    cards.appendChild(card);
+  });
+  if (allBounds && allBounds.isValid()) map.fitBounds(allBounds, { padding: [30, 30], maxZoom: 14 });
+}
+
+function fmtDist(m) { return m == null ? "-" : m >= 1000 ? (m / 1000).toFixed(1) + " km" : m + " m"; }
+
+function critChips(p, asText) {
+  // Scored places carry crit[] (per-criterion dist + score); Haiku-path places only dists{}.
+  if (p.crit && p.crit.length) {
+    return p.crit.map((c) => {
+      const cat = CATS[c.category] || { em: "✨", label: c.label || c.category };
+      const pre = c.kind === "avoid" ? "🚫" : cat.em;
+      const txt = `${pre} ${fmtDist(c.dist)}`;
+      const title = `${c.label || cat.label}: ${c.score}%`;
+      return asText ? `${txt} (${c.score}%)` : `<span class="chip" style="background:${scoreColor(c.score)}" title="${title}">${txt}</span>`;
+    }).join(asText ? " · " : "");
+  }
+  return Object.entries(p.dists || {}).map(([k, m]) => {
+    const cat = CATS[k] || { em: "📍", label: k, color: "#666" };
+    const txt = `${cat.em} ${fmtDist(m)}`;
+    return asText ? txt : `<span class="chip" style="background:${cat.color}">${txt}</span>`;
+  }).join(asText ? " · " : "");
+}
+
+// sparql view
+document.getElementById("btnSparql").onclick = () => document.getElementById("sparqlview").classList.add("open");
+</script>
+</body>
+</html>

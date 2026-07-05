@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <style>
+      body {
+        font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1rem;
+        color: #222;
+      }
+      h1 {
+        font-size: 1.3rem;
+        margin: 0 0 0.25rem;
+      }
+      h2 {
+        font-size: 1rem;
+        margin: 1rem 0 0.25rem;
+        color: #555;
+      }
+      .row {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+        flex-wrap: wrap;
+      }
+      input[type="text"],
+      input[type="number"],
+      select {
+        padding: 0.55rem;
+        font-size: 0.95rem;
+        border: 1px solid #bbb;
+        border-radius: 4px;
+      }
+      input#question {
+        flex: 1;
+        min-width: 320px;
+        font-size: 1rem;
+      }
+      button {
+        padding: 0.55rem 1rem;
+        cursor: pointer;
+        border: 1px solid #888;
+        background: #fafafa;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
+      button.primary {
+        background: #2563eb;
+        color: white;
+        border-color: #2563eb;
+      }
+      button.primary:hover {
+        background: #1d4ed8;
+      }
+      #suggestions button {
+        background: #eef2ff;
+        border-color: #c7d2fe;
+        font-size: 0.8rem;
+      }
+      #suggestions button:hover {
+        background: #e0e7ff;
+      }
+      details.builder {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        margin: 0.5rem 0;
+        background: #fafaff;
+      }
+      details.builder summary {
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: #444;
+      }
+      .crow {
+        display: flex;
+        gap: 0.4rem;
+        margin: 0.35rem 0;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .crow select.mode {
+        width: 8.5rem;
+      }
+      .crow input.cat {
+        flex: 1;
+        min-width: 200px;
+      }
+      .crow input.dist {
+        width: 6.5rem;
+      }
+      .crow button.del {
+        padding: 0.35rem 0.6rem;
+        color: #991b1b;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 0.6rem;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        border-radius: 4px;
+        font-size: 0.8rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.82rem;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+        vertical-align: top;
+        max-width: 400px;
+        overflow-wrap: anywhere;
+      }
+      th {
+        background: #f4f4f4;
+      }
+      #map {
+        height: 420px;
+        margin-top: 0.25rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      #legend {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        font-size: 0.8rem;
+        margin-top: 0.3rem;
+        color: #444;
+      }
+      #legend .chip {
+        display: inline-block;
+        width: 0.8rem;
+        height: 0.8rem;
+        border-radius: 50%;
+        margin-right: 0.3rem;
+        vertical-align: -1px;
+      }
+      .error {
+        color: #991b1b;
+        background: #fee2e2;
+        padding: 0.6rem;
+        border: 1px solid #fca5a5;
+        border-radius: 4px;
+        white-space: pre-wrap;
+      }
+      .note {
+        color: #666;
+        font-style: italic;
+      }
+      .busy {
+        color: #2563eb;
+      }
+      .engine {
+        display: inline-block;
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        margin: 0.3rem 0;
+      }
+      .engine.primary-eng {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+      }
+      .engine.backup-eng {
+        background: #fef9c3;
+        color: #854d0e;
+        border: 1px solid #fde047;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Linguagem Natural -> GeoSPARQL</h1>
+
+    <form id="askForm">
+      <div class="row">
+        <input
+          type="text"
+          id="question"
+          placeholder="ex.: Bairros de Lisboa a menos de 400 m de metro e 800 m de um parque, mas sem avenida principal num raio de 200 m"
+          autocomplete="off"
+        />
+        <button type="submit" class="primary">Perguntar</button>
+      </div>
+
+      <div id="suggestions" class="row"></div>
+    </form>
+
+    <div id="status"></div>
+
+    <h2>SPARQL gerado</h2>
+    <pre id="sparql">(nenhum ainda)</pre>
+
+    <h2>Mapa</h2>
+    <div id="map"></div>
+    <div id="legend"></div>
+
+    <h2>Resultados</h2>
+    <div id="results">
+      <p class="note">Nenhuma consulta executada ainda.</p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      const SAMPLES = [
+        "Bairros de Lisboa a menos de 400 m de uma estação de metro e a menos de 800 m de um parque, mas sem avenida principal num raio de 200 m",
+        "Onde abrir um café vegano em Berlim: perto de uma universidade, mas sem outro restaurante vegano num raio de 1 km",
+        "Prédios de apartamentos em Madrid a menos de 300 m de uma estação de metro e de um supermercado",
+        "Estações de metro de Paris com um parque num raio de 500 m",
+        "Hospitais em Lisboa com nomes e coordenadas",
+      ];
+
+      const sugDiv = document.getElementById("suggestions");
+      for (const s of SAMPLES) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = s.length > 70 ? s.slice(0, 67) + "…" : s;
+        b.title = s;
+        b.onclick = () => {
+          document.getElementById("question").value = s;
+        };
+        sugDiv.appendChild(b);
+      }
+
+      // ---------- map ----------
+
+      const map = L.map("map").setView([20, 0], 2);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(map);
+      const markersLayer = L.layerGroup().addTo(map);
+
+      // Detect geometries by VALUE, not by column name. Any binding cell whose value
+      // starts with a WKT type keyword is rendered, regardless of what the column
+      // is called (?wkt, ?wkt1, ?routeGeom, ?areaGeom, etc.).
+      const WKT_RE =
+        /^\s*(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON)\s*\(/i;
+
+      // First WKT-bearing column = the candidate (blue, pin markers); the rest are
+      // constraint features and get their own muted color + circle markers.
+      const COLUMN_COLORS = [
+        "#2563eb",
+        "#dc2626",
+        "#059669",
+        "#d97706",
+        "#7c3aed",
+        "#0891b2",
+      ];
+
+      // WKT is "TYPE(body)". Coords inside are "lon lat[, lon lat ...]".
+      // Leaflet wants [lat, lon]. Most geometries except POINT/LINESTRING use nested
+      // parentheses; we split top-level groups by walking the string at depth==0.
+
+      function splitGroups(body) {
+        const groups = [];
+        let depth = 0,
+          start = -1;
+        for (let i = 0; i < body.length; i++) {
+          const c = body[i];
+          if (c === "(") {
+            if (depth === 0) start = i + 1;
+            depth++;
+          } else if (c === ")") {
+            depth--;
+            if (depth === 0) groups.push(body.slice(start, i));
+          }
+        }
+        return groups;
+      }
+
+      function parseCoordList(s) {
+        return s.split(",").map((p) => {
+          const [lon, lat] = p.trim().split(/\s+/).map(Number);
+          return [lat, lon];
+        });
+      }
+
+      function parseWKT(wkt) {
+        if (!wkt) return null;
+        const m = wkt.match(/^\s*([A-Z]+)\s*\(([\s\S]*)\)\s*$/i);
+        if (!m) return null;
+        const type = m[1].toUpperCase();
+        const body = m[2];
+        switch (type) {
+          case "POINT": {
+            const [lon, lat] = body.trim().split(/\s+/).map(Number);
+            return { type, coords: [lat, lon] };
+          }
+          case "LINESTRING":
+            return { type, coords: parseCoordList(body) };
+          case "POLYGON":
+            return { type, rings: splitGroups(body).map(parseCoordList) };
+          case "MULTIPOINT":
+            return { type, coords: parseCoordList(body.replace(/[()]/g, "")) };
+          case "MULTILINESTRING":
+            return { type, lines: splitGroups(body).map(parseCoordList) };
+          case "MULTIPOLYGON":
+            return {
+              type,
+              polygons: splitGroups(body).map((p) =>
+                splitGroups(p).map(parseCoordList),
+              ),
+            };
+          default:
+            return null;
+        }
+      }
+
+      function drawGeometry(parsed, label, layer, color, isCandidate) {
+        if (!parsed) {
+          console.warn("drawGeometry: parsed=null");
+          return null;
+        }
+        const polyStyle = { color: color, weight: 2, fillOpacity: 0.25 };
+        const lineStyle = { color: color, weight: 3 };
+        const ptStyle = {
+          radius: isCandidate ? 8 : 5,
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.85,
+          weight: 1,
+        };
+        const mkPoint = (c) =>
+          isCandidate ? L.marker(c) : L.circleMarker(c, ptStyle);
+        let shape = null;
+        try {
+          switch (parsed.type) {
+            case "POINT":
+              shape = mkPoint(parsed.coords);
+              break;
+            case "LINESTRING":
+              shape = L.polyline(parsed.coords, lineStyle);
+              break;
+            case "POLYGON":
+              // pass flat for one ring (no holes), nested otherwise
+              shape = L.polygon(
+                parsed.rings.length === 1 ? parsed.rings[0] : parsed.rings,
+                polyStyle,
+              );
+              break;
+            case "MULTIPOINT":
+              shape = L.featureGroup(parsed.coords.map(mkPoint));
+              break;
+            case "MULTILINESTRING":
+              shape = L.polyline(parsed.lines, lineStyle);
+              break;
+            case "MULTIPOLYGON":
+              shape = L.polygon(parsed.polygons, polyStyle);
+              break;
+          }
+        } catch (e) {
+          console.error("drawGeometry failed for type", parsed.type, e, parsed);
+          return null;
+        }
+        if (!shape) {
+          console.warn("drawGeometry: unsupported type", parsed.type);
+          return null;
+        }
+        shape.bindPopup(
+          `<b>${label || "(sem nome)"}</b><br><small>${parsed.type}</small>`,
+        );
+        shape.addTo(layer);
+        if (parsed.type === "POINT")
+          return L.latLngBounds([parsed.coords, parsed.coords]);
+        return shape.getBounds();
+      }
+
+      function setStatus(html, cls) {
+        const div = document.getElementById("status");
+        div.innerHTML = "";
+        if (!html) return;
+        const p = document.createElement("div");
+        if (cls) p.className = cls;
+        p.textContent = html;
+        div.appendChild(p);
+      }
+
+      function setEngineBadge(payload) {
+        const div = document.getElementById("status");
+        if (!payload.engine) return;
+        const badge = document.createElement("span");
+        badge.className =
+          "engine " +
+          (payload.engine === "qlever-osm" ? "primary-eng" : "backup-eng");
+        badge.textContent =
+          payload.engine === "qlever-osm"
+            ? "motor: " + payload.engine_label
+            : "⚠ OSM indisponível — usando backup: " + payload.engine_label;
+        div.appendChild(badge);
+      }
+
+      function render(payload) {
+        document.getElementById("sparql").textContent =
+          payload.sparql || "(no SPARQL)";
+        markersLayer.clearLayers();
+        const resDiv = document.getElementById("results");
+        resDiv.innerHTML = "";
+        const legendDiv = document.getElementById("legend");
+        legendDiv.innerHTML = "";
+
+        if (payload.error) {
+          setStatus(payload.error, "error");
+        } else {
+          setStatus("", null);
+        }
+        setEngineBadge(payload);
+
+        if (!payload.head || !payload.results) {
+          if (!payload.error)
+            resDiv.innerHTML = '<p class="note">No results.</p>';
+          return;
+        }
+
+        const cols = payload.head.vars || [];
+        const bindings = payload.results.bindings || [];
+
+        if (bindings.length === 0) {
+          resDiv.innerHTML =
+            '<p class="note">A consulta retornou 0 resultados. O SPARQL está acima — tente reformular a pergunta.</p>';
+          return;
+        }
+
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const trh = document.createElement("tr");
+        for (const c of cols) {
+          const th = document.createElement("th");
+          th.textContent = c;
+          trh.appendChild(th);
+        }
+        thead.appendChild(trh);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        const labelCol =
+          cols.find(
+            (c) => c === "name" || c === "label" || c.endsWith("Label"),
+          ) || cols[0];
+        let allBounds = null;
+        const columnColor = {}; // WKT-bearing column → color (assigned in first-seen order)
+
+        for (const b of bindings) {
+          const tr = document.createElement("tr");
+          for (const c of cols) {
+            const td = document.createElement("td");
+            td.textContent = b[c] ? b[c].value : "";
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+
+          const rowLabel = b[labelCol] ? b[labelCol].value : "(sem nome)";
+          for (const c of cols) {
+            const cell = b[c];
+            if (!cell || !cell.value || !WKT_RE.test(cell.value)) continue;
+            const parsed = parseWKT(cell.value);
+            if (!parsed) continue;
+            if (!(c in columnColor)) {
+              columnColor[c] =
+                COLUMN_COLORS[
+                  Object.keys(columnColor).length % COLUMN_COLORS.length
+                ];
+            }
+            const isCandidate = columnColor[c] === COLUMN_COLORS[0];
+            const bb = drawGeometry(
+              parsed,
+              `${rowLabel} (${c})`,
+              markersLayer,
+              columnColor[c],
+              isCandidate,
+            );
+            if (bb) {
+              if (!allBounds)
+                allBounds = L.latLngBounds(
+                  bb.getSouthWest(),
+                  bb.getNorthEast(),
+                );
+              else allBounds.extend(bb);
+            }
+          }
+        }
+
+        table.appendChild(tbody);
+        resDiv.appendChild(table);
+
+        for (const [c, color] of Object.entries(columnColor)) {
+          const item = document.createElement("span");
+          item.innerHTML = `<span class="chip" style="background:${color}"></span>${c}`;
+          legendDiv.appendChild(item);
+        }
+
+        const count = document.createElement("p");
+        count.className = "note";
+        count.textContent = `${bindings.length} resultado(s).`;
+        resDiv.insertBefore(count, table);
+
+        if (allBounds && allBounds.isValid())
+          map.fitBounds(allBounds, { maxZoom: 16, padding: [20, 20] });
+      }
+
+      async function ask(question) {
+        setStatus("Consultando Claude → SPARQL…", "busy");
+        document.getElementById("sparql").textContent = "(gerando…)";
+        document.getElementById("results").innerHTML = "";
+        document.getElementById("legend").innerHTML = "";
+        markersLayer.clearLayers();
+
+        try {
+          const res = await fetch("/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question }),
+          });
+          const payload = await res.json();
+          render(payload);
+        } catch (e) {
+          setStatus("Falha na requisição: " + e, "error");
+        }
+      }
+
+      document.getElementById("askForm").onsubmit = (e) => {
+        e.preventDefault();
+        const q = document.getElementById("question").value.trim();
+        if (q) ask(q);
+      };
+    </script>
+  </body>
+</html>
