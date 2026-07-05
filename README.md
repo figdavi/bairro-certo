@@ -1,14 +1,4 @@
-# Onde Morar / Onde Abrir — NLQ → GeoSPARQL → OSM/Wikidata
-
-A tiny prototype for an academic talk on the Semantic Web, framed as a multi-criteria
-place finder: describe your ideal place in one messy sentence — stacking as many
-spatial constraints as you want, positive ("within 400 m of a metro") and negative
-("no major avenue within 200 m") — and the map shows where everything holds at once.
-
-Claude Haiku (via the Claude Code CLI in headless mode) writes a GeoSPARQL query;
-QLever runs it against the full OSM planet (automatic fallback to the Wikidata Query
-Service when QLever is unreachable); the page shows the SPARQL, a results table, and
-Leaflet geometries color-coded per column.
+# Bairro Certo
 
 ## Stack
 
@@ -64,13 +54,3 @@ README.md
   whole question through Haiku instead. On the Wikidata backup engine it runs small
   parallel queries (candidates + one per category, cached 10 min) and crosses
   distances in Python — slider tweaks re-rank in ~20 ms without touching the network.
-
-## Demo tips
-
-- The sample chips under the input cover each capability: constraint stack,
-  spatial negation, building-level candidates, anchor POIs, plain containment.
-- "Montar frase com critérios" expands a builder that composes the sentence from
-  structured rows — then hand-edit it to show that any new criterion is just words.
-- A colored badge shows which engine answered; if the OSM endpoint is down (or your
-  network blocks it), the app silently switches to the Wikidata backup — slower and
-  with fewer POIs, but the demo survives.
